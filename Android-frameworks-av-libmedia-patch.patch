@@ -1,0 +1,73 @@
+From 05863eb6e768aa582e0d51539adde7799b9479d3 Mon Sep 17 00:00:00 2001
+From: Ratchanan Srirattanamet <peathot@hotmail.com>
+Date: Sun, 24 May 2015 00:29:30 +0700
+Subject: [PATCH] Add a hack to send AudioSystem::setParameters' args over TCP.
+
+This is needed to send parameters out to card_parameters_setter,
+to send these parameters to Pulseaudio.
+---
+ media/libmedia/AudioSystem.cpp | 41 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 41 insertions(+)
+
+diff --git a/media/libmedia/AudioSystem.cpp b/media/libmedia/AudioSystem.cpp
+index b9b36e0..719e563 100644
+--- a/media/libmedia/AudioSystem.cpp
++++ b/media/libmedia/AudioSystem.cpp
+@@ -25,6 +25,12 @@
+ #include <media/IAudioPolicyService.h>
+ #include <math.h>
+ 
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <netinet/in.h>
++#include <arpa/inet.h>
++#include <string.h>
++
+ #include <system/audio.h>
+ 
+ // ----------------------------------------------------------------------------
+@@ -201,6 +207,41 @@ status_t AudioSystem::setMode(audio_mode_t mode)
+ }
+ 
+ status_t AudioSystem::setParameters(audio_io_handle_t ioHandle, const String8& keyValuePairs) {
++    if (ioHandle == 0) { //Indicate global param
++        int sockfd, portno = 9999, bytes_written;
++        struct sockaddr_in serv_addr;
++        char buffer[256];
++
++        sockfd = socket(AF_INET, SOCK_STREAM, 0);
++        if (sockfd < 0) {
++          ALOGE("setParameters: ERROR opening socket");
++          return PERMISSION_DENIED;
++        }
++
++        bzero((char *) &serv_addr, sizeof(serv_addr));
++        serv_addr.sin_family = AF_INET;
++        inet_aton("127.0.0.1", &serv_addr.sin_addr);
++        serv_addr.sin_port = htons(portno);
++
++        if (connect(sockfd,(sockaddr*)&serv_addr,sizeof(serv_addr)) < 0) {
++            ALOGE("setParameters: ERROR connecting");
++            return PERMISSION_DENIED;
++        }
++
++        strcpy(buffer, keyValuePairs.string());
++        strcat(buffer, "\n");
++
++        bytes_written = write(sockfd, buffer, strlen(buffer));
++        if (bytes_written < 0) {
++            ALOGE("setParameters: ERROR writing to socket");
++            close(sockfd);
++            return PERMISSION_DENIED;
++        }
++
++        close(sockfd);
++        return OK;
++    }
++
+     const sp<IAudioFlinger>& af = AudioSystem::get_audio_flinger();
+     if (af == 0) return PERMISSION_DENIED;
+     return af->setParameters(ioHandle, keyValuePairs);
+-- 
+2.1.4
+

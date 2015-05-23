@@ -1,0 +1,4 @@
+This program is a simple daemon that open a tcp socket on port 9999 (or at variable PORT), read Android audio HAL's set_parameters style parameters, and then set those parameters in Pulseaudio. This program must be used with patched version of Pulseaudio and Android's libmedia, which patches are included. Also included is Upstart's session job definition for using with Ubuntu Touch session.
+The purpose of this daemon is for setting LG L90 Dual's dual-sim active call. The rild will use libmedia's AudioSystem::SetParameters to tell Audio HAL via AudioFlinger about calls's states. I edit this function to make it connect to this daemon instead of AudioFlinger (which is not in Ubuntu Touch anymore).
+
+
